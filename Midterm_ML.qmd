@@ -1,0 +1,191 @@
+---
+title: "Characterizing Automobiles"
+author: "Samuel Twenafel"
+date: "03/20/2025"
+
+format: 
+  html:  # You will quite likely want to change all but the last one, to taste
+    theme:
+        light: flatly
+        dark: darkly
+    mainfont: monospace
+    highlight-style: github
+    title-block-banner: true
+    embed-resources: true
+---
+
+# Setup
+
+-   Setup
+
+```{r libs}
+sh <- suppressPackageStartupMessages
+sh(library(tidyverse))
+sh(library(caret))
+sh(library(fastDummies))
+sh(library(class))
+sh(library(ISLR))# for the "Auto" dataframe
+sh(library(moderndive))
+sh(library(pROC))
+```
+
+# Dataframe
+
+-   We use the `Auto` dataframe.
+
+```{r df}
+head(Auto)
+```
+
+-   It has the following variable names, which describe various attributes of automobiles.
+
+```{r df2}
+names(Auto)
+```
+
+# Multiple Regression
+
+-   Run a linear regression model with `mpg` as the dependent variable and `horsepower` and `year` as features (variables).
+-   Compute and comment on the RMSE.
+
+```{r regression}
+m1 = lm(mpg ~ horsepower + year, data = Auto)
+
+get_regression_summaries(m1)
+```
+
+> [**TODO**]{style="color:red;font-weight:bold"}: *The root mean square error for this model was 4.37. This means that on average the model was off when predicting the mpg on average 4.37 mpg. In context of this data set, the range of mpg's of the cars is from 9 to 46.6, so having the predictions being off 4.37 mpg is not the worst but it also is not the best.*
+
+# Feature Engineering
+
+-   Create 10 features based on the `name` column.
+-   Remove all rows with a missing value.
+-   Ensure only `mpg` and the engineered features remain.
+-   Compute and comment on the RMSE.
+
+```{r features}
+
+ Auto_try = Auto %>%
+  rename_all(funs(str_replace_all(., " ", "_")))%>%
+  mutate(make = word(name, 1))%>%
+  mutate(chevrolet = str_detect(name,"chevrolet"))%>%
+  mutate(honda = str_detect(name,"honda"))%>%
+  mutate(custom = str_detect(name,"custom"))%>%
+  mutate(classic = str_detect(name,"classic"))%>%
+  mutate(buick = str_detect(name,"buick"))%>%
+  mutate(volvo = str_detect(name,"volvo"))%>%
+  mutate(chevrolet = str_detect(name,"chevrolet"))%>%
+  mutate(subaru = str_detect(name,"subaru"))%>%
+  mutate(fiat = str_detect(name,"fiat"))%>%
+  mutate(audi = str_detect(name,"audi"))%>%
+  na.omit()%>%
+  select(mpg,make,chevrolet,honda,custom,classic,buick,volvo,chevrolet,subaru,fiat,audi )
+
+
+
+
+m2 = lm(mpg ~ make+chevrolet+honda+custom+classic+buick+volvo+chevrolet+subaru+fiat+audi, data = Auto_try)
+
+get_regression_summaries(m2)
+  
+```
+
+> [TODO]{style="color:red;font-weight:bold"}: *The root mean square error for this model was 5.83. This means that on average the model was off when predicting the mpg on average 5.83 mpg. In context of this data set, the range of mpg's of the cars is from 9 to 46.6, so having the predictions being off 5.83 mpg is not great.*
+
+# Classification
+
+-   Use either of $K$-NN or Naive Bayes to predict whether an automobile is a `chevrolet` or a `honda`.
+-   Explain your choice of technique.
+-   Report on your Kappa value.
+
+```{r classification}
+
+Auto_try = Auto_try%>%
+  mutate(chevrolet = as.factor(chevrolet))%>%
+  mutate(make = as.factor(make))
+
+
+car_index <- createDataPartition(Auto_try$chevrolet, p = 0.80, list = FALSE)
+train <- Auto_try[ car_index, ]
+test <- Auto_try[-car_index, ]
+
+fit <- train(chevrolet ~ .,
+             data = train, 
+             method = "naive_bayes",
+             metric = "Kappa",
+             trControl = trainControl(method = "cv", number = 5))
+
+confusionMatrix(predict(fit, test),factor(test$chevrolet))
+```
+
+> [**TODO**]{style="color:red;font-weight:bold"}: For this model I chose to use naive bayes instead of k nearest neighbor. Because my features are all either factors or boolean. KNN does not work because it has to look at the points around itself to come up with a prediction about what class an item is. Naive bayes classifies an item based off of a series of independent probabilities.
+>
+> The naive bayes model returns a kappa value. This kappa value tells us that how good our model was at predicting whether or not the car was a Chevrolet or not. The reported kappa value was a zero, which tells us that this model was terrible at predicting whether or not the car was a Chevrolet. This means that it is no better than random guessing.
+
+# Binary Classification
+
+-   Predict whether a car is a `honda`.
+-   Use model weights.
+-   Display and comment on an ROC curve.
+
+```{r binary classification}
+Auto_try%>%
+  filter(make %in% c("chevrolet", "honda"))%>%
+  group_by(make) %>%
+  summarize(count = n())
+
+weight_train <- train %>% 
+  mutate(weights=if_else(make=="chevrolet",1,3.3))
+
+prob <- predict(fit, newdata = test, type = "prob")[,2]
+myRoc <- roc(test$make, prob)
+plot(myRoc)
+
+
+```
+
+> [**TODO**]{style="color:red;font-weight:bold"}: *As you can see the ROC curve is a straight line. since the area under the curve is 0.5, that means that even with the weighting of the two classes, the model is still no better than random guessing.*
+
+# Ethics
+
+-   Based on your analysis, comment on the [Clean Air Act of 1970 and Ammendments of 1977](https://www.epa.gov/clean-air-act-overview/evolution-clean-air-act)
+-   Discuss the civic reposibilities of data scientists for:
+    -   Big Data and Human-Centered Computing
+    -   Democratic Institutions
+    -   Climate Change
+-   Provide at least one statistical measure for each, such as a RMSE, Kappa value, or ROC curve.
+
+> [TODO]{style="color:red;font-weight:bold"}: Big Data and Human-Centered Computing
+>
+> Data scientists for big data have to be responsible for pushing the cars out to the public that are going to be the most fuel efficient so that more people are choosing cars that are better for the environment. Big data should be aware that the more cylinders a car's engine has the less fuel efficient the car is going to be, and therefor hurt the environment.
+
+```{r big data}
+Auto%>%
+  group_by(cylinders)%>%
+  summarise(ave_mpg = mean(mpg))
+```
+
+> [TODO]{style="color:red;font-weight:bold"}: Democratic Institutions
+>
+> The Clean Air Act and Amendments are important for Democratic Institutions because they were put in charge of making sure that the air was clean for the people that live in these highly populated areas. After the year 1977 the mpg went up showing that the work done helped to create more fuel efficient cars. If they continue to monitor the cars, then maybe the fuel efficiency will keep rising.
+
+```{r democracy}
+Auto%>%
+  mutate(make = word(name, 1))%>%
+  ggplot(aes(x = year, y = mpg, color = make))+
+  geom_line()+
+  geom_vline( xintercept = 77)+
+  labs(title = "MPG After Clean Air Act")
+```
+
+> [TODO]{style="color:red;font-weight:bold"}: Climate Change
+>
+> When considering climate change the civic responsibilities are to make sure that we can identify the cars that are the least fuel efficient because those are the cars that are emitting more harmful gasses. If we are able to identify which car manufactures are producing low mpg cars then we will be able to know how to effect the car industry to better help the environment. As you can see over the time when the Clean Air Act was put into place hi and Chevrolet had the worst fuel efficiency.
+
+```{r climate}
+Auto%>%
+  mutate(make = word(name, 1))%>%
+  group_by(make)%>%
+  summarise(avg_mpg = mean(mpg))%>%
+  arrange(avg_mpg)
+```
